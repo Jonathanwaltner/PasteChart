@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PasteChart: paste your numbers, get a chart</title>
+<meta name="description" content="Paste cells from Excel, Google Sheets or a CSV and get a clean bar, line or pie chart you can download as a PNG. Free, private, no signup.">
+<!-- Google Search Console: paste your verification tag here, e.g. <meta name="google-site-verification" content="CODE"> -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+<!-- STYLES: colors are CSS variables at the top (light and dark mode) -->
+<style>
+:root{color-scheme:light dark;--bg:#FBFCFE;--panel:#fff;--ink:#14233B;--mut:#5A6B85;--grid:#DCE6F2;--line:#C5D3E6;--acc:#2B4EFF;--on:#fff}
+@media(prefers-color-scheme:dark){:root{--bg:#0E1626;--panel:#121D31;--ink:#E7EEF9;--mut:#93A4C0;--grid:#1C2B46;--line:#2A3C5E;--acc:#7C95FF;--on:#0E1626}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg) linear-gradient(var(--grid) 1px,transparent 1px) 0 0/28px 28px;color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:0 20px}
+.brand{padding:18px 0;font-weight:700;letter-spacing:.01em}
+h1{font:700 clamp(2.1rem,5.5vw,3.6rem)/1.05 "Iowan Old Style",Palatino,Georgia,serif;margin:18px 0 12px;max-width:16ch}
+.lead{max-width:56ch;color:var(--mut);margin:0 0 28px;font-size:1.08rem}
+.tool{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:20px;align-items:start}
+@media(max-width:820px){.tool{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px}
+label{display:block;font-weight:600;margin:0 0 4px}
+.hint{color:var(--mut);font-size:.88rem;margin:0 0 8px}
+textarea,input,select{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px 10px}
+textarea{height:210px;resize:vertical;font:14px/1.45 ui-monospace,Menlo,monospace;white-space:pre}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+button{font:inherit;font-weight:600;border:0;border-radius:6px;padding:10px 16px;cursor:pointer;background:var(--acc);color:var(--on);width:100%}
+button.alt{background:transparent;color:var(--acc);border:1px solid var(--acc);width:auto}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+#msg{margin:0;padding:14px;color:var(--mut)}
+canvas{display:block;width:100%}
+details{margin-top:14px;font-size:.92rem}summary{cursor:pointer;color:var(--acc);font-weight:600}
+details .row{margin:10px 0 4px}
+#ad{margin:28px auto;text-align:center}#ad:empty{display:none}
+section.info{margin:44px 0;max-width:68ch}
+h2{font:700 1.5rem/1.2 "Iowan Old Style",Palatino,Georgia,serif;margin:0 0 12px}
+h3{font-size:1rem;margin:20px 0 4px}p{margin:0 0 8px}
+footer{border-top:1px solid var(--line);padding:20px 0 40px;color:var(--mut);font-size:.9rem}
+.gridwrap{overflow:auto;max-height:270px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+table{border-collapse:collapse;width:100%}
+th{font:600 .75rem system-ui;color:var(--mut);padding:0 2px;text-align:center}
+td{padding:0;border:1px solid var(--grid)}
+td input{border:0;border-radius:0;background:transparent;min-width:88px;padding:8px}
+td input.hd{font-weight:700}
+.x{width:auto;background:transparent;color:var(--mut);padding:2px 6px;font-weight:400;border-radius:4px}
+.tb{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.tb button{padding:7px 12px;font-size:.9rem}
+#dz.over{outline:3px dashed var(--acc)}
+body{position:relative}
+.rail{display:none;position:absolute;top:130px;width:160px}
+.rail:empty{display:none!important}
+@media(min-width:1480px){.rail{display:block}.rail.l{left:calc(50% - 730px)}.rail.r{right:calc(50% - 730px)}}
+</style>
+</head>
+<body>
+<aside class="rail l" aria-label="Advertisement"><!-- Left side ad (160x600): paste ad code here --></aside>
+<aside class="rail r" aria-label="Advertisement"><!-- Right side ad (160x600): paste ad code here --></aside>
+<div class="wrap">
+<div class="brand">PasteChart</div>
+<h1>Paste your numbers. Get a chart.</h1>
+<p class="lead">Copy cells from Excel, Google Sheets or a CSV file, paste them into the table below, and download a clean PNG. Nothing is uploaded and there is nothing to sign up for.</p>
+
+<!-- THE TOOL: left card = editable data table and options, right card = the chart -->
+<main class="tool">
+<div class="card" id="dz">
+<label>Your data</label>
+<p class="hint">Click a cell and type, or paste straight from Excel or Google Sheets. You can also drop a CSV file onto this box. The top row holds the names.</p>
+<div class="gridwrap"><table id="grid" aria-label="Your data"></table></div>
+<div class="tb"><button class="alt" id="addr" type="button">Add row</button><button class="alt" id="addc" type="button">Add column</button><button class="alt" id="file" type="button">Open CSV file</button><button class="alt" id="clr" type="button">Clear</button></div>
+<input type="file" id="fi" accept=".csv,.tsv,.txt" hidden aria-label="Open a CSV file">
+<div class="row">
+<div><label for="type">Chart type</label><select id="type"><option value="bar">Bars</option><option value="hbar">Horizontal bars</option><option value="line">Lines</option><option value="pie">Pie</option><option value="stack" data-pro>Stacked bars</option><option value="area" data-pro>Area</option><option value="donut" data-pro>Doughnut</option><option value="scatter" data-pro>Scatter (first column is x)</option></select></div>
+<div><label for="title">Title</label><input id="title" value="Sales vs. expenses"></div>
+</div>
+<button id="dl">Download PNG</button>
+<details id="pro" hidden>
+<summary>Unlock Pro: no watermark and more chart types</summary>
+<p class="hint" style="margin-top:8px">Get an unlock code, then enter it here.</p>
+<a id="buy" href="#" target="_blank" rel="noopener" hidden>Get a code</a>
+<div class="row"><input id="code" placeholder="Unlock code" aria-label="Unlock code"><button id="apply" class="alt" type="button">Apply</button></div>
+<p id="pm" class="hint" role="status"></p>
+</details>
+</div>
+<div class="card" style="padding:0;overflow:hidden">
+<p id="msg" hidden>Add a label column and at least one column of numbers, one row per line.</p>
+<canvas id="c" role="img" aria-label="Chart of your pasted data"></canvas>
+</div>
+</main>
+
+<!-- AD SLOT under the tool (what phones and small screens see). Paste ad code inside; it stays hidden while empty. -->
+<aside id="ad" aria-label="Advertisement"><!-- Paste your ad code here after your ad account is approved --></aside>
+
+<!-- SEARCH TEXT, FAQ and guide links. Edit freely, but keep it helpful and original. -->
+<section class="info">
+<h2>Make a chart from a spreadsheet in three steps</h2>
+<p>Select the cells you want in Excel or Google Sheets, copy them, and paste them into the box above. The chart updates as you type. When it looks right, download it as a PNG for a slide, a report, or a post.</p>
+<h3>Where does my data go?</h3>
+<p>Nowhere. The chart is drawn inside your browser and nothing is sent to a server.</p>
+<h3>Can I paste straight from Excel or Google Sheets?</h3>
+<p>Yes. Tabs, commas and semicolons all work, and numbers like $1,200 or 15% are understood.</p>
+<h3>Which chart should I pick?</h3>
+<p>Bars compare categories, lines show change over time, and pies show shares of a whole when there are only a few slices. Pie and doughnut charts use the first column of numbers, and scatter charts use the first column as the x values.</p>
+<h3>Guides</h3>
+<p><a href="guides/bar-chart.html">How to make a bar chart from spreadsheet data</a><br><a href="guides/choose-chart.html">Bar, line or pie? How to choose</a><br><a href="guides/misleading-charts.html">Six chart mistakes that mislead people</a></p>
+</section>
+</div>
+<!-- FOOTER -->
+<footer><div class="wrap">PasteChart is free to use. Your data stays in your browser. <a href="privacy.html">Privacy policy</a></div></footer>
+
+<!-- ALL THE LOGIC: plain JavaScript, no libraries. README.md has a map. -->
+<script>
+// SETTINGS YOU CAN EDIT: site name, payment link, and the code customers type to unlock Pro.
+const CONFIG={site:"PasteChart",payLink:"",unlockCode:"Spike1234"};
+const $=id=>document.getElementById(id);
+// Chart colors, used in order for each series or slice.
+const PAL=["#2B4EFF","#0FA58A","#F2A33A","#E5586E","#8A5CF5","#2BB3D9"];
+const FONT="system-ui,-apple-system,Segoe UI,sans-serif";
+const nf=new Intl.NumberFormat(undefined,{notation:"compact",maximumFractionDigits:1});
+// Is Pro unlocked? Remembered in the browser (local storage).
+let pro=false;try{pro=localStorage.getItem("pc_pro")==="1"}catch(e){}
+
+// Splits one line of text into cells, respecting "quoted, values".
+function split(l,d){const o=[];let c="",q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(ch=='"'){if(q&&l[i+1]=='"'){c+='"';i++}else q=!q}else if(ch==d&&!q){o.push(c.trim());c=""}else c+=ch}o.push(c.trim());return o}
+// Turns text like "$1,200" or "15%" into a number, or null if it is not one.
+function num(s){const n=parseFloat(String(s).replace(/[$€£%\s]/g,"").replace(/,/g,""));return isNaN(n)?null:n}
+
+// Turns the table text into { labels, series }, the shape the chart code expects.
+function parse(t){
+ const L=t.split(/\r?\n/).filter(x=>x.trim());
+ if(L.length<2)return null;
+ const f=L[0],d=f.includes("\t")?"\t":((f.match(/;/g)||[]).length>(f.match(/,/g)||[]).length?";":",");
+ const R=L.map(l=>split(l,d)),w=Math.max(...R.map(r=>r.length));
+ let head=null,labels,series=[];
+ if(w==1){
+  if(num(R[0][0])===null)head=R.shift();
+  labels=R.map((_,i)=>String(i+1));
+  series=[{name:head?head[0]:"Values",v:R.map(r=>num(r[0])??0)}];
+ }else{
+  if(R[0].slice(1).every(c=>num(c)===null))head=R.shift();
+  labels=R.map(r=>r[0]);
+  for(let c=1;c<w;c++){const v=R.map(r=>num(r[c]??""));if(v.some(x=>x!==null))series.push({name:head&&head[c]?head[c]:"Series "+c,v:v.map(x=>x??0)})}
+ }
+ if(!R.length||!series.length)return null;
+ return{labels,series};
+}
+
+// Picks tidy axis tick values (steps of 1, 2, 5 or 10) between a min and a max.
+function nice(min,max,n){const r=(max-min)||1,s0=r/n,m=Math.pow(10,Math.floor(Math.log10(s0))),f=s0/m,s=(f<=1?1:f<=2?2:f<=5?5:10)*m,a=Math.floor(min/s)*s,b=Math.ceil(max/s)*s,t=[];for(let v=a;v<=b+s/2;v+=s)t.push(+v.toFixed(10));return t}
+
+// Draws the chosen chart type on a canvas. Used for both the on-screen chart and the PNG download.
+function draw(ctx,W,H,T,m,type,title,wm){
+ ctx.clearRect(0,0,W,H);
+ if(T.bg){ctx.fillStyle=T.bg;ctx.fillRect(0,0,W,H)}
+ const fs=Math.max(11,Math.min(18,W/68));
+ let top=20;
+ if(title){ctx.fillStyle=T.ink;ctx.textAlign="left";ctx.font="600 "+Math.max(15,Math.min(26,W/30))+"px "+FONT;ctx.fillText(title,20,36);top=58}
+ ctx.font=fs+"px "+FONT;
+ const pie=type=="pie"||type=="donut",items=(pie?m.labels:m.series.map(s=>s.name)).map(String),rows=[];
+ if(pie||m.series.length>1){let row=[],x=0;items.forEach((t,i)=>{t=t.length>18?t.slice(0,17)+"…":t;const w=ctx.measureText(t).width+28;if(x+w>W-40&&row.length){rows.push(row);row=[];x=0}row.push({t,i,x});x+=w});rows.push(row)}
+ rows.length=Math.min(rows.length,3);
+ const lh=Math.round(fs*1.6),bot=H-rows.length*lh-(wm?20:10);
+ if(pie){
+ const v=m.series[0].v.map(x=>Math.max(0,x)),tot=v.reduce((a,b)=>a+b,0)||1,cx=W/2,cy=(top+bot)/2,r=Math.max(20,Math.min((W-40)/2,(bot-top-8)/2)),mids=[],dn=type=="donut";
+ let a=-Math.PI/2;
+ v.forEach((x,i)=>{const b=a+x/tot*Math.PI*2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,b);ctx.closePath();ctx.fillStyle=PAL[i%PAL.length];ctx.fill();ctx.strokeStyle=T.bg||"#fff";ctx.lineWidth=2;ctx.stroke();mids.push((a+b)/2);a=b});
+ if(dn){ctx.beginPath();ctx.arc(cx,cy,r*.55,0,7);ctx.fillStyle=T.bg||"#fff";ctx.fill()}
+ ctx.fillStyle="#fff";ctx.textAlign="center";
+ v.forEach((x,i)=>{if(x/tot>.06){const k=dn?.78:.65;ctx.fillText(Math.round(x/tot*100)+"%",cx+Math.cos(mids[i])*r*k,cy+Math.sin(mids[i])*r*k+4)}});
+}else if(type=="hbar"){
+ const all=m.series.flatMap(s=>s.v),tk=nice(Math.min(0,...all),Math.max(0,...all),5),lo=tk[0],hi=tk[tk.length-1],lab=m.labels.map(s=>s.length>16?s.slice(0,15)+"…":s);
+ const L=Math.max(...lab.map(s=>ctx.measureText(s).width))+30,R=W-20,B=bot-fs*1.8,Tp=top+4,x=v=>L+(v-lo)/((hi-lo)||1)*(R-L),n=lab.length,g=(B-Tp)/n,S=m.series.length,bh=g*.72/S;
+ ctx.lineWidth=1;ctx.textAlign="center";
+ tk.forEach(t=>{const xx=Math.round(x(t))+.5;ctx.strokeStyle=t===0?T.mut:T.grid;ctx.beginPath();ctx.moveTo(xx,Tp);ctx.lineTo(xx,B);ctx.stroke();ctx.fillStyle=T.mut;ctx.fillText(nf.format(t),xx,B+fs*1.4)});
+ ctx.textAlign="right";ctx.fillStyle=T.mut;
+ lab.forEach((s,i)=>ctx.fillText(s,L-8,Tp+g*(i+.5)+4));
+ m.series.forEach((s,j)=>{ctx.fillStyle=PAL[j%PAL.length];s.v.forEach((v,i)=>{const y0=Tp+g*i+g*.14+bh*j,p=x(0),q=x(v);ctx.fillRect(Math.min(p,q),y0,Math.max(1,Math.abs(q-p)),Math.max(1,bh-1))})});
+}else if(type=="scatter"){
+ const xs=m.labels.map((s,i)=>num(s)??i+1),ys=m.series.flatMap(s=>s.v),xt=nice(Math.min(...xs),Math.max(...xs),6),yt=nice(Math.min(...ys),Math.max(...ys),5);
+ const L=Math.max(...yt.map(t=>ctx.measureText(nf.format(t)).width))+28,R=W-20,B=bot-fs*2,Tp=top+6,x=v=>L+(v-xt[0])/((xt[xt.length-1]-xt[0])||1)*(R-L),y=v=>B-(v-yt[0])/((yt[yt.length-1]-yt[0])||1)*(B-Tp);
+ ctx.lineWidth=1;ctx.strokeStyle=T.grid;
+ yt.forEach(t=>{const yy=Math.round(y(t))+.5;ctx.beginPath();ctx.moveTo(L,yy);ctx.lineTo(R,yy);ctx.stroke();ctx.fillStyle=T.mut;ctx.textAlign="right";ctx.fillText(nf.format(t),L-8,yy+4)});
+ xt.forEach(t=>{const xx=Math.round(x(t))+.5;ctx.beginPath();ctx.moveTo(xx,Tp);ctx.lineTo(xx,B);ctx.stroke();ctx.fillStyle=T.mut;ctx.textAlign="center";ctx.fillText(nf.format(t),xx,B+fs*1.4)});
+ m.series.forEach((s,j)=>{ctx.fillStyle=PAL[j%PAL.length];s.v.forEach((v,i)=>{ctx.beginPath();ctx.arc(x(xs[i]),y(v),5,0,7);ctx.fill()})});
+}else{
+ const st=type=="stack",all=st?m.labels.flatMap((_,i)=>[m.series.reduce((a,s)=>a+Math.max(0,s.v[i]),0),m.series.reduce((a,s)=>a+Math.min(0,s.v[i]),0)]):m.series.flatMap(s=>s.v),tk=nice(Math.min(0,...all),Math.max(0,...all),5),lo=tk[0],hi=tk[tk.length-1];
+ const lw=Math.max(...tk.map(t=>ctx.measureText(nf.format(t)).width)),L=lw+28,R=W-16,B=bot-fs*2,Tp=top+6;
+ const y=v=>B-(v-lo)/((hi-lo)||1)*(B-Tp);
+ ctx.textAlign="right";ctx.lineWidth=1;
+ tk.forEach(t=>{const yy=Math.round(y(t))+.5;ctx.strokeStyle=t===0?T.mut:T.grid;ctx.beginPath();ctx.moveTo(L,yy);ctx.lineTo(R,yy);ctx.stroke();ctx.fillStyle=T.mut;ctx.fillText(nf.format(t),L-8,yy+4)});
+ const n=m.labels.length,g=(R-L)/n,lab=m.labels.map(s=>s.length>12?s.slice(0,11)+"…":s),k=Math.max(1,Math.ceil((Math.max(...lab.map(s=>ctx.measureText(s).width))+10)/g)),S=m.series.length;
+ ctx.textAlign="center";ctx.fillStyle=T.mut;
+ lab.forEach((s,i)=>{if(i%k==0)ctx.fillText(s,L+g*(i+.5),B+fs*1.4)});
+ if(type=="bar"){const bw=g*.72/S;m.series.forEach((s,j)=>{ctx.fillStyle=PAL[j%PAL.length];s.v.forEach((v,i)=>{const x=L+g*i+g*.14+bw*j,y0=y(0),y1=y(v);ctx.fillRect(x,Math.min(y0,y1),Math.max(1,bw-1),Math.abs(y1-y0))})})}
+ else if(st){const bw=g*.64,pos=m.labels.map(()=>0),neg=m.labels.map(()=>0);m.series.forEach((s,j)=>{ctx.fillStyle=PAL[j%PAL.length];s.v.forEach((v,i)=>{const b=v>=0?pos[i]:neg[i],e=b+v;if(v>=0)pos[i]=e;else neg[i]=e;ctx.fillRect(L+g*i+(g-bw)/2,Math.min(y(b),y(e)),bw,Math.max(1,Math.abs(y(e)-y(b))))})})}
+ else{const path=s=>{ctx.beginPath();s.v.forEach((v,i)=>{const x=L+g*(i+.5),yy=y(v);i?ctx.lineTo(x,yy):ctx.moveTo(x,yy)})};
+  m.series.forEach((s,j)=>{ctx.strokeStyle=ctx.fillStyle=PAL[j%PAL.length];ctx.lineWidth=2.5;ctx.lineJoin="round";
+   if(type=="area"){path(s);ctx.lineTo(L+g*(n-.5),y(0));ctx.lineTo(L+g*.5,y(0));ctx.closePath();ctx.globalAlpha=.22;ctx.fill();ctx.globalAlpha=1}
+   path(s);ctx.stroke();s.v.forEach((v,i)=>{ctx.beginPath();ctx.arc(L+g*(i+.5),y(v),3.5,0,7);ctx.fill()})})}
+}
+ ctx.textAlign="left";
+ rows.forEach((r,ri)=>r.forEach(o=>{const yy=bot+6+ri*lh;ctx.fillStyle=PAL[o.i%PAL.length];ctx.fillRect(20+o.x,yy,fs,fs);ctx.fillStyle=T.ink;ctx.fillText(o.t,20+o.x+fs+6,yy+fs-1)}));
+ if(wm){ctx.fillStyle=T.mut;ctx.font="11px "+FONT;ctx.textAlign="right";ctx.fillText("Made with "+CONFIG.site,W-14,H-8)}
+}
+
+
+// THE DATA TABLE: G is a grid of text cells. Row 0 holds the column names.
+let G=[["Month","Sales","Expenses"],["Jan","4200","3100"],["Feb","3900","2800"],["Mar","5100","3300"],["Apr","4800","3600"],["May","6200","3900"],["Jun","7000","4100"]];
+const getText=()=>G.map(r=>r.join("\t")).join("\n");
+const esc=v=>String(v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+// Rebuilds the editable table on the page from G.
+function build(){
+ if(!G.length||!G[0].length)G=[["Label","Values"],["",""]];
+ const w=Math.max(...G.map(r=>r.length));G.forEach(r=>{while(r.length<w)r.push("")});
+ let h="<thead><tr><th></th>"+G[0].map((_,c)=>"<th>"+(c?`<button class="x" type="button" data-c="${c}" aria-label="Remove column ${c+1}">×</button>`:"")+"</th>").join("")+"<th></th></tr></thead><tbody>";
+ G.forEach((r,i)=>{h+="<tr><th>"+(i?i:"")+"</th>"+r.map((v,c)=>`<td><input value="${esc(v)}" data-r="${i}" data-c="${c}" class="${i?"":"hd"}" aria-label="Row ${i+1}, column ${c+1}"></td>`).join("")+"<th>"+(i?`<button class="x" type="button" data-r="${i}" aria-label="Remove row ${i}">×</button>`:"")+"</th></tr>"});
+ $("grid").innerHTML=h+"</tbody>";
+}
+// Pastes text (from Excel, Sheets or a CSV) into the table starting at a given cell.
+function place(t,r0,c0){
+ const L=t.replace(/\r/g,"").split("\n").slice(0,200);while(L.length&&L[L.length-1]==="")L.pop();if(!L.length)return;
+ const f=L[0],d=f.includes("\t")?"\t":((f.match(/;/g)||[]).length>(f.match(/,/g)||[]).length?";":",");
+ L.forEach((l,i)=>{while(G.length<=r0+i)G.push([]);split(l,d).slice(0,40).forEach((v,j)=>{while(G[r0+i].length<=c0+j)G[r0+i].push("");G[r0+i][c0+j]=v})});
+ build();render();
+}
+// Reads a CSV file that was opened or dropped onto the page.
+function load(f){if(f)f.text().then(t=>{G=[];place(t.slice(0,300000),0,0)})}
+const gr=$("grid");
+gr.addEventListener("input",e=>{const t=e.target;if(t.dataset.r!==undefined){G[+t.dataset.r][+t.dataset.c]=t.value;render()}});
+gr.addEventListener("paste",e=>{const t=e.clipboardData.getData("text")||"";if(e.target.dataset.r===undefined||!/[\t\n]/.test(t.trim()))return;e.preventDefault();place(t,+e.target.dataset.r,+e.target.dataset.c)});
+gr.addEventListener("keydown",e=>{if(e.key!=="Enter"||e.target.dataset.r===undefined)return;e.preventDefault();const r=+e.target.dataset.r+1,c=+e.target.dataset.c;if(r>=G.length){G.push(G[0].map(()=>""));build();render()}gr.querySelector(`input[data-r="${r}"][data-c="${c}"]`).focus()});
+gr.addEventListener("click",e=>{const t=e.target;if(t.dataset.c!==undefined&&t.classList.contains("x")&&G[0].length>2)G.forEach(r=>r.splice(+t.dataset.c,1));else if(t.dataset.r!==undefined&&t.classList.contains("x")&&G.length>2)G.splice(+t.dataset.r,1);else return;build();render()});
+$("addr").onclick=()=>{G.push(G[0].map(()=>""));build();render();gr.querySelector(`input[data-r="${G.length-1}"]`).focus()};
+$("addc").onclick=()=>{G.forEach((r,i)=>r.push(i?"":"Series "+G[0].length));build();render();gr.querySelector(`input[data-r="0"][data-c="${G[0].length-1}"]`).focus()};
+$("clr").onclick=()=>{G=[["Label","Values"],["",""],["",""],["",""]];build();render();gr.querySelector("input").focus()};
+$("file").onclick=()=>$("fi").click();
+$("fi").onchange=e=>{load(e.target.files[0]);e.target.value=""};
+const dz=$("dz");
+dz.addEventListener("dragover",e=>{e.preventDefault();dz.classList.add("over")});
+dz.addEventListener("dragleave",()=>dz.classList.remove("over"));
+dz.addEventListener("drop",e=>{e.preventDefault();dz.classList.remove("over");load(e.dataTransfer.files[0])});
+
+// Redraws the on-screen chart from the current table, chart type and title.
+function render(){
+ const cv=$("c"),cssW=Math.max(280,cv.parentElement.clientWidth),cssH=Math.round(Math.max(300,cssW*.62)),dpr=window.devicePixelRatio||1;
+ cv.width=cssW*dpr;cv.height=cssH*dpr;cv.style.height=cssH+"px";
+ const ctx=cv.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);
+ const cs=getComputedStyle(document.documentElement),g=n=>cs.getPropertyValue(n).trim(),m=parse(getText());
+ $("msg").hidden=!!m;
+ if(!m){ctx.clearRect(0,0,cssW,cssH);return}
+ draw(ctx,cssW,cssH,{bg:g("--panel"),ink:g("--ink"),mut:g("--mut"),grid:g("--grid")},m,$("type").value,$("title").value.trim(),!pro);
+ cv.setAttribute("aria-label",($("title").value.trim()||"Chart")+": "+$("type").value+" chart of "+m.labels.length+" rows and "+m.series.length+" series");
+}
+
+// DOWNLOAD PNG: draws a 1200x750 version of the chart and saves it.
+$("dl").onclick=()=>{
+ const m=parse(getText());if(!m)return;
+ const c=document.createElement("canvas"),W=1200,H=750;c.width=W;c.height=H;
+ draw(c.getContext("2d"),W,H,{bg:"#fff",ink:"#14233B",mut:"#5A6B85",grid:"#DCE6F2"},m,$("type").value,$("title").value.trim(),!pro);
+ c.toBlob(b=>{const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=($("title").value.trim()||"chart").replace(/[^\w-]+/g,"-")+".png";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});
+};
+
+// UNLOCK PRO: compares the entered code with CONFIG.unlockCode.
+$("apply").onclick=()=>{
+ if($("code").value.trim()===CONFIG.unlockCode){pro=true;try{localStorage.setItem("pc_pro","1")}catch(e){}$("pm").textContent="Pro unlocked.";lock();render()}
+ else $("pm").textContent="That code doesn't match. Check it and try again.";
+};
+if(CONFIG.payLink&&!pro){$("pro").hidden=false;$("buy").href=CONFIG.payLink;$("buy").hidden=false}
+
+// START UP: update the chart whenever the visitor changes something.
+["type","title"].forEach(id=>$(id).addEventListener("input",render));
+window.addEventListener("resize",render);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",render);
+// Greys out the Pro chart types until Pro is unlocked.
+function lock(){document.querySelectorAll("#type option[data-pro]").forEach(o=>{o.disabled=!pro;o.textContent=o.textContent.replace(/ \(Pro\)$/,"")+(pro?"":" (Pro)")})}
+lock();build();render();
+</script>
+</body>
+</html>
